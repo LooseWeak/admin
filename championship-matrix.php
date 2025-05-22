@@ -14,7 +14,7 @@ $years = $pdo->query("
 
 // Récupérer tous les joueurs qui ont participé au championnat cette année
 $playersQuery = $pdo->prepare("
-    SELECT DISTINCT p.id, p.first_name
+    SELECT DISTINCT p.id, p.first_name, p.last_name
     FROM players p
     JOIN (
         SELECT player1_id as player_id FROM matches 
@@ -181,7 +181,7 @@ foreach ($pairMatches as $pairKey => $pairMatchList) {
                                     <th></th>
                                     <?php foreach ($players as $player): ?>
                                         <th>
-                                            <div class="player-name"><?= htmlspecialchars($player['first_name']) ?></div>
+                                            <div class="player-name"><?= htmlspecialchars($player['first_name']) ?> <?= substr(htmlspecialchars($player['last_name']),0,1) ?></div>
                                         </th>
                                     <?php endforeach; ?>
                                 </tr>
@@ -189,7 +189,7 @@ foreach ($pairMatches as $pairKey => $pairMatchList) {
                             <tbody>
                                 <?php foreach ($players as $rowPlayer): ?>
                                     <tr>
-                                        <td class="player-cell"><?= htmlspecialchars($rowPlayer['first_name']) ?></td>
+                                        <td class="player-cell"><?= htmlspecialchars($rowPlayer['first_name']) ?> <?= substr(htmlspecialchars($rowPlayer['last_name']),0,1) ?></td>
                                         <?php foreach ($players as $colPlayer): ?>
                                             <?php 
                                             $rowId = $rowPlayer['id'];
