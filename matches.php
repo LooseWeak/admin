@@ -89,13 +89,13 @@ function checkChampionshipRules($pdo, $player1_id, $player2_id, $points, $match_
         }
         // Sinon, il faut qu'il y ait moins de 2 matches de championnat
         if (count($championship_matches) >= 2) {
-            throw new Exception("Ces joueurs ont déjà joué 2 matches de championnat en $year.");
+            throw new Exception("MAX_CHAMPIONSHIP_REACHED|Ces joueurs ont déjà joué 2 matches de championnat en $year.");
         }
     } 
     // Pour un nouveau match
     else {
         if (count($championship_matches) >= 2) {
-            throw new Exception("Ces joueurs ont déjà joué 2 matches de championnat en $year.");
+            throw new Exception("MAX_CHAMPIONSHIP_REACHED|Ces joueurs ont déjà joué 2 matches de championnat en $year.");
         }
     }
 
@@ -131,14 +131,31 @@ if (isset($_POST['edit'])) {
 
         // Si c'est un match de championnat
         if (isset($_POST['is_championship']) && $_POST['is_championship']) {
-            checkChampionshipRules(
-                $pdo, 
-                $_POST['player1_id'], 
-                $_POST['player2_id'], 
-                $_POST['points'],
-                $_POST['match_date'],
-                $_POST['id']  // ID du match en cours d'édition
-            );
+            try {
+                checkChampionshipRules(
+                    $pdo, 
+                    $_POST['player1_id'], 
+                    $_POST['player2_id'], 
+                    $_POST['points'],
+                    $_POST['match_date'],
+                    $_POST['id']  // ID du match en cours d'édition
+                );
+            } catch (Exception $e) {
+                // Vérifier si c'est l'erreur spécifique des matchs de championnat
+                if (strpos($e->getMessage(), 'MAX_CHAMPIONSHIP_REACHED') === 0) {
+                    // Extraire le message réel après le code d'erreur
+                    $parts = explode('|', $e->getMessage(), 2);
+                    $errorMessage = $parts[1];
+                    
+                    // Définir une variable pour indiquer de proposer comme match normal
+                    $proposeAsNormal = true;
+                    $formAction = 'edit';
+                    $formData = $_POST;
+                    throw new Exception($errorMessage . " Voulez-vous enregistrer ce match comme un match hors championnat ?");
+                } else {
+                    throw $e; // Relancer l'exception si ce n'est pas la bonne erreur
+                }
+            }
         }
 
         // Récupération des données des joueurs
@@ -193,13 +210,30 @@ if (isset($_POST['add'])) {
 
         // Si c'est un match de championnat
         if (isset($_POST['is_championship']) && $_POST['is_championship']) {
-            checkChampionshipRules(
-                $pdo, 
-                $_POST['player1_id'], 
-                $_POST['player2_id'], 
-                $_POST['points'],
-                $_POST['match_date']
-            );
+            try {
+                checkChampionshipRules(
+                    $pdo, 
+                    $_POST['player1_id'], 
+                    $_POST['player2_id'], 
+                    $_POST['points'],
+                    $_POST['match_date']
+                );
+            } catch (Exception $e) {
+                // Vérifier si c'est l'erreur spécifique des matchs de championnat
+                if (strpos($e->getMessage(), 'MAX_CHAMPIONSHIP_REACHED') === 0) {
+                    // Extraire le message réel après le code d'erreur
+                    $parts = explode('|', $e->getMessage(), 2);
+                    $errorMessage = $parts[1];
+                    
+                    // Définir une variable pour indiquer de proposer comme match normal
+                    $proposeAsNormal = true;
+                    $formAction = 'add';
+                    $formData = $_POST;
+                    throw new Exception($errorMessage . " Voulez-vous enregistrer ce match comme un match hors championnat ?");
+                } else {
+                    throw $e; // Relancer l'exception si ce n'est pas la bonne erreur
+                }
+            }
         }
 
         // Récupération des données des joueurs
@@ -283,14 +317,29 @@ $matches = $matches->fetchAll();
 <body>
     <div class="container mt-4">
         <h1>Gestion des matchs</h1>
-
+        
         <?php if (isset($error)): ?>
-            <div class="alert alert-danger"><?= htmlspecialchars($error) ?></div>
+            <div class="alert alert-danger">
+                <?= htmlspecialchars($error) ?>
+                <?php if (isset($proposeAsNormal) && $proposeAsNormal): ?>
+                    <form method="post" class="mt-2">
+                        <?php foreach ($formData as $key => $value): ?>
+                            <?php if ($key != 'is_championship'): ?>
+                                <input type="hidden" name="<?= htmlspecialchars($key) ?>" value="<?= htmlspecialchars($value) ?>">
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                        <button type="submit" name="<?= $formAction ?>" class="btn btn-primary">
+                            Enregistrer comme match hors championnat
+                        </button>
+                    </form>
+                <?php endif; ?>
+            </div>
         <?php endif; ?>
 
         <?php if (isset($success)): ?>
             <div class="alert alert-success"><?= htmlspecialchars($success) ?></div>
         <?php endif; ?>
+
         <!-- formulaire d'ajout -->
         <div class="card mb-4">
             <div class="card-header">
@@ -300,14 +349,17 @@ $matches = $matches->fetchAll();
                 <form method="post" class="row g-3">
                     <div class="col-md-6">
                         <label class="form-label">Date et heure</label>
-                        <input type="text" name="match_date" class="form-control datetimePicker" required>
+                        <input type="text" name="match_date" class="form-control datetimePicker" required
+                            value="<?= isset($formData['match_date']) && isset($proposeAsNormal) && $formAction == 'add' ? htmlspecialchars($formData['match_date']) : '' ?>">
                     </div>
                     
                     <div class="col-md-4">
                         <label class="form-label">Points du match</label>
                         <select name="points" class="form-select" required>
                             <?php for($i=1; $i<=25; $i+=2): ?>
-                                <option value="<?= $i ?>"><?= $i ?> points</option>
+                                <option value="<?= $i ?>" <?= isset($formData['points']) && isset($proposeAsNormal) && $formAction == 'add' && $formData['points'] == $i ? 'selected' : '' ?>>
+                                    <?= $i ?> points
+                                </option>
                             <?php endfor; ?>
                         </select>
                     </div>
@@ -325,7 +377,7 @@ $matches = $matches->fetchAll();
                         <select name="player1_id" class="form-select" required>
                             <option value="">Sélectionner un joueur</option>
                             <?php foreach($players as $player): ?>
-                                <option value="<?= $player['id'] ?>">
+                                <option value="<?= $player['id'] ?>" <?= isset($formData['player1_id']) && isset($proposeAsNormal) && $formAction == 'add' && $formData['player1_id'] == $player['id'] ? 'selected' : '' ?>>
                                     <?= htmlspecialchars($player['first_name'] . ' ' . $player['last_name']) ?>
                                 </option>
                             <?php endforeach; ?>
@@ -334,7 +386,8 @@ $matches = $matches->fetchAll();
 
                     <div class="col-md-2">
                         <label class="form-label">Score J1</label>
-                        <input type="number" name="score_player1" class="form-control" required min="0">
+                        <input type="number" name="score_player1" class="form-control" required min="0"
+                            value="<?= isset($formData['score_player1']) && isset($proposeAsNormal) && $formAction == 'add' ? htmlspecialchars($formData['score_player1']) : '' ?>">
                     </div>
 
                     <div class="col-md-3">
@@ -346,7 +399,7 @@ $matches = $matches->fetchAll();
                         <select name="player2_id" class="form-select" required>
                             <option value="">Sélectionner un joueur</option>
                             <?php foreach($players as $player): ?>
-                                <option value="<?= $player['id'] ?>">
+                                <option value="<?= $player['id'] ?>" <?= isset($formData['player2_id']) && isset($proposeAsNormal) && $formAction == 'add' && $formData['player2_id'] == $player['id'] ? 'selected' : '' ?>>
                                     <?= htmlspecialchars($player['first_name'] . ' ' . $player['last_name']) ?>
                                 </option>
                             <?php endforeach; ?>
@@ -355,7 +408,8 @@ $matches = $matches->fetchAll();
 
                     <div class="col-md-2">
                         <label class="form-label">Score J2</label>
-                        <input type="number" name="score_player2" class="form-control" required min="0">
+                        <input type="number" name="score_player2" class="form-control" required min="0"
+                            value="<?= isset($formData['score_player2']) && isset($proposeAsNormal) && $formAction == 'add' ? htmlspecialchars($formData['score_player2']) : '' ?>">
                     </div>
 
                     <div class="col-12">
@@ -510,7 +564,7 @@ $matches = $matches->fetchAll();
                                 <select name="player1_id" class="form-select" id="edit_player1_id" required>
                                     <?php foreach($players as $player): ?>
                                         <option value="<?= $player['id'] ?>">
-                                            <?= htmlspecialchars($player['last_name'] . ' ' . $player['first_name']) ?>
+                                            <?= htmlspecialchars($player['first_name'] . ' ' . $player['last_name']) ?>
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
@@ -526,7 +580,7 @@ $matches = $matches->fetchAll();
                                 <select name="player2_id" class="form-select" id="edit_player2_id" required>
                                     <?php foreach($players as $player): ?>
                                         <option value="<?= $player['id'] ?>">
-                                            <?= htmlspecialchars($player['last_name'] . ' ' . $player['first_name']) ?>
+                                            <?= htmlspecialchars($player['first_name'] . ' ' . $player['last_name']) ?>
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
