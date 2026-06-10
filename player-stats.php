@@ -88,7 +88,7 @@ foreach ($ratings as $match) {
 if (!empty($ratings)) {
     $last_match = end($ratings);
     $rating_data[] = [
-        'date' => $last_match->match_date, // Même date que le dernier match
+        'date' => $last_match['match_date'],
         'rating' => $current_rating / 100,
         'change' => 0
     ];
